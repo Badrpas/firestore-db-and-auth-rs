@@ -32,22 +32,23 @@
 use super::credentials::Credentials;
 use super::errors::FirebaseError;
 use super::sessions;
-use rocket::{http::Status, request, Outcome, State};
+use rocket::{request::{FromRequest, Request, Outcome}, State};
 
 /// Use this Rocket guard to secure a route for authenticated users only.
 /// Will return the associated session, that contains the used access token for further use
 /// and access to the Firestore database.
 pub struct FirestoreAuthSessionGuard(pub sessions::user::Session);
 
-impl<'a, 'r> request::FromRequest<'a, 'r> for FirestoreAuthSessionGuard {
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for FirestoreAuthSessionGuard {
     type Error = FirebaseError;
 
-    fn from_request(request: &'a request::Request<'r>) -> request::Outcome<Self, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let r = request
             .headers()
             .get_one("Authorization")
             .map(|f| f.to_owned())
-            .or(request.get_query_value("auth").and_then(|r| r.ok()));
+            .or(request.query_value("auth").and_then(|r| r.ok()));
         if r.is_none() {
             return Outcome::Forward(());
         }
@@ -55,23 +56,26 @@ impl<'a, 'r> request::FromRequest<'a, 'r> for FirestoreAuthSessionGuard {
         if !bearer.starts_with("Bearer ") {
             return Outcome::Forward(());
         }
-        let bearer = &bearer[7..];
+        let bearer = (&bearer[7..]).to_owned();
 
         // You MUST make the credentials object available as managed state to rocket!
-        let db = match request.guard::<State<Credentials>>() {
+        let db: &State<Credentials> = match request.guard().await {
             Outcome::Success(db) => db,
             _ => {
                 return Outcome::Failure((
-                    Status::InternalServerError,
+                    rocket::http::Status::InternalServerError,
                     FirebaseError::Generic("Firestore credentials not set!"),
                 ))
             }
         };
-
-        let session = sessions::user::Session::by_access_token(&db, bearer);
+        let db = db.inner().clone();
+        let session = rocket::tokio::task::spawn_blocking(move|| {
+            sessions::user::Session::by_access_token(&db, &bearer)
+        }).await.unwrap();
         if session.is_err() {
             return Outcome::Forward(());
         }
         Outcome::Success(FirestoreAuthSessionGuard(session.unwrap()))
+
     }
 }
