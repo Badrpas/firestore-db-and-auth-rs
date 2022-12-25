@@ -50,10 +50,12 @@ impl<'r> FromRequest<'r> for FirestoreAuthSessionGuard {
             .map(|f| f.to_owned())
             .or(request.query_value("auth").and_then(|r| r.ok()));
         if r.is_none() {
+            println!("[FirestoreAuthSessionGuard] No header found");
             return Outcome::Forward(());
         }
         let bearer = r.unwrap();
         if !bearer.starts_with("Bearer ") {
+            println!("[FirestoreAuthSessionGuard] Header is wrong");
             return Outcome::Forward(());
         }
         let bearer = (&bearer[7..]).to_owned();
@@ -62,6 +64,7 @@ impl<'r> FromRequest<'r> for FirestoreAuthSessionGuard {
         let db: &State<Credentials> = match request.guard().await {
             Outcome::Success(db) => db,
             _ => {
+                println!("[FirestoreAuthSessionGuard] Server Credentials are not initialized properly");
                 return Outcome::Failure((
                     rocket::http::Status::InternalServerError,
                     FirebaseError::Generic("Firestore credentials not set!"),
@@ -72,8 +75,12 @@ impl<'r> FromRequest<'r> for FirestoreAuthSessionGuard {
         let session = rocket::tokio::task::spawn_blocking(move|| {
             sessions::user::Session::by_access_token(&db, &bearer)
         }).await.unwrap();
-        if session.is_err() {
-            return Outcome::Forward(());
+        if let Err(err) = session {
+            println!("[FirestoreAuthSessionGuard] Error creating user session: {err}");
+            return Outcome::Failure((
+                rocket::http::Status::Unauthorized,
+                err,
+            ));
         }
         Outcome::Success(FirestoreAuthSessionGuard(session.unwrap()))
 

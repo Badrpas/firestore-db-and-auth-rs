@@ -12,7 +12,6 @@ use super::FirebaseAuthBearer;
 
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::ops::Deref;
 use std::slice::Iter;
 
@@ -66,6 +65,7 @@ pub mod user {
 
     /// An impersonated session.
     /// Firestore rules will restrict your access.
+    #[derive(Clone)]
     pub struct Session {
         /// The firebase auth user id
         pub user_id: String,
@@ -74,7 +74,7 @@ pub mod user {
         pub refresh_token: Option<String>,
         /// The firebase projects API key, as defined in the credentials object
         pub api_key: String,
-        access_token_: RefCell<String>,
+        access_token_: std::sync::Arc<std::sync::RwLock<String>>,
         project_id_: String,
         /// The http client. Replace or modify the client if you have special demands like proxy support
         pub client: reqwest::blocking::Client,
@@ -91,13 +91,14 @@ pub mod user {
         ///
         /// If the refresh failed, this will return an empty string.
         fn access_token(&self) -> String {
-            let jwt = self.access_token_.borrow();
+            let jwt = self.access_token_.read().unwrap();
             let jwt = jwt.as_str();
 
             if is_expired(&jwt, 0).unwrap() {
                 // Unwrap: the token is always valid at this point
                 if let Ok(response) = get_new_access_token(&self.api_key, jwt) {
-                    self.access_token_.swap(&RefCell::new(response.id_token.clone()));
+                    let mut kek = self.access_token_.write().unwrap();
+                    *kek = response.id_token.clone();
                     return response.id_token;
                 } else {
                     // Failed to refresh access token. Return an empty string
@@ -108,7 +109,7 @@ pub mod user {
         }
 
         fn access_token_unchecked(&self) -> String {
-            self.access_token_.borrow().clone()
+            self.access_token_.read().unwrap().clone()
         }
 
         fn client(&self) -> &reqwest::blocking::Client {
@@ -232,7 +233,7 @@ pub mod user {
             let r: RefreshTokenToAccessTokenResponse = get_new_access_token(&credentials.api_key, refresh_token)?;
             Ok(Session {
                 user_id: r.user_id,
-                access_token_: RefCell::new(r.id_token),
+                access_token_: std::sync::Arc::new(std::sync::RwLock::new(r.id_token)),
                 refresh_token: Some(r.refresh_token),
                 project_id_: credentials.project_id.to_owned(),
                 api_key: credentials.api_key.clone(),
@@ -280,7 +281,7 @@ pub mod user {
 
             Ok(Session {
                 user_id: user_id.to_owned(),
-                access_token_: RefCell::new(r.idToken),
+                access_token_: std::sync::Arc::new(std::sync::RwLock::new(r.idToken)),
                 refresh_token: r.refreshToken,
                 project_id_: credentials.project_id.to_owned(),
                 api_key: credentials.api_key.clone(),
@@ -305,7 +306,7 @@ pub mod user {
             Ok(Session {
                 user_id: result.subject,
                 project_id_: result.audience,
-                access_token_: RefCell::new(access_token.to_owned()),
+                access_token_: std::sync::Arc::new(std::sync::RwLock::new(access_token.to_owned())),
                 refresh_token: None,
                 api_key: credentials.api_key.clone(),
                 client: reqwest::blocking::Client::new(),
