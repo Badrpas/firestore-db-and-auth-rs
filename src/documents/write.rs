@@ -71,29 +71,18 @@ pub struct WriteOptions {
 /// # }
 ///```
 
-///
-/// ## Arguments
-/// * 'auth' The authentication token
-/// * 'path' The document path / collection; For example "my_collection" or "a/nested/collection"
-/// * 'document_id' The document id. Make sure that you do not include the document id in the path argument.
-/// * 'document' The document
-/// * 'options' Write options
-pub fn write<T>(
+pub fn write_dto(
     auth: &impl FirebaseAuthBearer,
     path: &str,
     document_id: Option<impl AsRef<str>>,
-    document: &T,
+    firebase_document: dto::Document,
     options: WriteOptions,
-) -> Result<WriteResult>
-where
-    T: Serialize,
-{
+) -> Result<WriteResult> {
+
     let mut url = match document_id.as_ref() {
         Some(document_id) => firebase_url_extended(auth.project_id(), path, document_id.as_ref()),
         None => firebase_url(auth.project_id(), path),
     };
-
-    let firebase_document = pod_to_document(&document)?;
 
     if options.merge && firebase_document.fields.is_some() {
         let fields = firebase_document.fields.as_ref().unwrap().keys().join(",");
@@ -149,4 +138,26 @@ where
         create_time,
         update_time,
     })
+
+}
+
+///
+/// ## Arguments
+/// * 'auth' The authentication token
+/// * 'path' The document path / collection; For example "my_collection" or "a/nested/collection"
+/// * 'document_id' The document id. Make sure that you do not include the document id in the path argument.
+/// * 'document' The document
+/// * 'options' Write options
+pub fn write<T>(
+    auth: &impl FirebaseAuthBearer,
+    path: &str,
+    document_id: Option<impl AsRef<str>>,
+    document: &T,
+    options: WriteOptions,
+) -> Result<WriteResult>
+where
+    T: Serialize,
+{
+    let firebase_document = pod_to_document(&document)?;
+    write_dto(auth, path, document_id, firebase_document, options)
 }
