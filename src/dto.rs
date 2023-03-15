@@ -141,6 +141,29 @@ pub struct RunQueryRequest {
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct RunAggregationQueryRequest {
+    #[serde(rename = "structuredAggregationQuery")]
+    pub structured_aggregation_query: StructuredAggregationQuery
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct StructuredAggregationQuery {
+    #[serde(rename = "structuredQuery")]
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    pub structured_query: StructuredQuery,
+    pub aggregations: Vec<Aggregation>,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct Aggregation {
+    pub alias: String,
+    pub count: Option<CountAggregation>,
+}
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct CountAggregation {
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct FieldReference {
     #[serde(rename = "fieldPath")]
     pub field_path: String,
@@ -432,6 +455,24 @@ pub struct RunQueryResponse {
     pub document: Option<Document>,
     #[serde(rename = "readTime")]
     pub read_time: Option<String>,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct RunAggregatedQueryResponse {
+    pub result: Option<AggregatedQueryResult>,
+    #[serde(rename = "readTime")]
+    pub read_time: Option<String>,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct AggregatedQueryResult {
+    #[serde(rename = "aggregateFields")]
+    pub aggregate_fields: AggregatedQueryResultFields,
+}
+
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct AggregatedQueryResultFields {
+    pub count: Option<Value>,
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]

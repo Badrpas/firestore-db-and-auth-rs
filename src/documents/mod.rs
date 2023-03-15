@@ -52,7 +52,7 @@ pub trait JoinableIterator: Iterator {
 impl<'a, VALUE> JoinableIterator for std::collections::hash_map::Keys<'a, String, VALUE> {}
 
 #[inline]
-fn firebase_url_query(v1: &str) -> String {
+pub fn firebase_url_query(v1: &str) -> String {
     format!(
         "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents:runQuery",
         v1
@@ -60,12 +60,21 @@ fn firebase_url_query(v1: &str) -> String {
 }
 
 #[inline]
-fn firebase_url_base(v1: &str) -> String {
+pub fn firebase_url_aggregation_query(v1: &str, base_collection: &str) -> String {
+    format!(
+        "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents{}:runAggregationQuery",
+        v1,
+        base_collection,
+    )
+}
+
+#[inline]
+pub fn firebase_url_base(v1: &str) -> String {
     format!("https://firestore.googleapis.com/v1/{}", v1)
 }
 
 #[inline]
-fn firebase_url_extended(v1: &str, v2: &str, v3: &str) -> String {
+pub fn firebase_url_extended(v1: &str, v2: &str, v3: &str) -> String {
     format!(
         "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents/{}/{}",
         v1, v2, v3
@@ -73,7 +82,7 @@ fn firebase_url_extended(v1: &str, v2: &str, v3: &str) -> String {
 }
 
 #[inline]
-fn firebase_url(v1: &str, v2: &str) -> String {
+pub fn firebase_url(v1: &str, v2: &str) -> String {
     format!(
         "https://firestore.googleapis.com/v1/projects/{}/databases/(default)/documents/{}?",
         v1, v2
