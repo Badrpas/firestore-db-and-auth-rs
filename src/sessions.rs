@@ -462,6 +462,7 @@ pub mod service_account {
     use chrono::Duration;
     use std::cell::RefCell;
     use std::ops::Deref;
+    use std::sync::RwLock;
 
     /// Service account session
     pub struct Session {
@@ -471,8 +472,8 @@ pub mod service_account {
         pub client: reqwest::blocking::Client,
         /// The http client for async operations. Replace or modify the client if you have special demands like proxy support
         pub client_async: reqwest::Client,
-        jwt: RefCell<AuthClaimsJWT>,
-        access_token_: RefCell<String>,
+        jwt: RwLock<AuthClaimsJWT>,
+        access_token_: RwLock<String>,
     }
 
     impl super::FirebaseAuthBearer for Session {
@@ -482,23 +483,25 @@ pub mod service_account {
         /// Return the encoded jwt to be used as bearer token. If the jwt
         /// issue_at is older than 50 minutes, it will be updated to the current time.
         fn access_token(&self) -> String {
-            let mut jwt = self.jwt.borrow_mut();
+            let mut jwt = self.jwt.write().unwrap();
 
             if jwt_update_expiry_if(&mut jwt, 50) {
                 if let Some(secret) = self.credentials.keys.secret.as_ref() {
-                    if let Ok(v) = self.jwt.borrow().encode(&secret.deref()) {
+                    println!("Hope there is no deadlock right effing now...");
+                    if let Ok(v) = self.jwt.read().unwrap().encode(&secret.deref()) {
                         if let Ok(v2) = v.encoded() {
-                            self.access_token_.swap(&RefCell::new(v2.encode()));
+                            let mut token = self.access_token_.write().unwrap();
+                            let _prev_token = std::mem::replace(&mut *token, v2.encode());
                         }
                     }
                 }
             }
 
-            self.access_token_.borrow().clone()
+            self.access_token_.read().unwrap().clone()
         }
 
         fn access_token_unchecked(&self) -> String {
-            self.access_token_.borrow().clone()
+            self.access_token_.read().unwrap().clone()
         }
 
         fn client(&self) -> &reqwest::blocking::Client {
@@ -538,8 +541,8 @@ pub mod service_account {
             let encoded = jwt.encode(&secret.deref())?.encoded()?.encode();
 
             Ok(Session {
-                access_token_: RefCell::new(encoded),
-                jwt: RefCell::new(jwt),
+                access_token_: RwLock::new(encoded),
+                jwt: RwLock::new(jwt),
                 credentials,
                 client: reqwest::blocking::Client::new(),
                 client_async: reqwest::Client::new(),
