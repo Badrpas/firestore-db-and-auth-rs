@@ -1,3 +1,5 @@
+use crate::errors::extract_google_api_error_async;
+
 use super::*;
 use std::io::Read;
 
@@ -17,6 +19,15 @@ where
     Ok(document_to_pod(&json)?)
 }
 
+pub async fn read_by_name_async<T>(auth: &impl FirebaseAuthBearer, document_name: impl AsRef<str>) -> Result<T>
+where
+    for<'b> T: Deserialize<'b>,
+{
+    let resp = request_document_async(auth, document_name).await?;
+    let json: dto::Document = resp.json().await?;
+    Ok(document_to_pod(&json)?)
+}
+
 ///
 /// Read a document of a specific type from a collection
 ///
@@ -30,6 +41,14 @@ where
 {
     let document_name = document_name(&auth.project_id(), path, document_id);
     read_by_name(auth, &document_name)
+}
+
+pub async fn read_async<T>(auth: &impl FirebaseAuthBearer, path: &str, document_id: impl AsRef<str>) -> Result<T>
+where
+    for<'b> T: Deserialize<'b>,
+{
+    let document_name = document_name(&auth.project_id(), path, document_id);
+    read_by_name_async(auth, &document_name).await
 }
 
 /// Return the raw unparsed content of the Firestore document. Methods like
@@ -63,6 +82,22 @@ fn request_document(
         .send()?;
 
     extract_google_api_error(resp, || document_name.as_ref().to_owned())
+}
+
+async fn request_document_async(
+    auth: &impl FirebaseAuthBearer,
+    document_name: impl AsRef<str>,
+) -> Result<reqwest::Response> {
+    let url = firebase_url_base(document_name.as_ref());
+
+    let resp = auth
+        .client_async()
+        .get(&url)
+        .bearer_auth(auth.access_token().to_owned())
+        .send()
+        .await?;
+
+    extract_google_api_error_async(resp, || document_name.as_ref().to_owned()).await
 }
 
 /// Simple method to join the path and document identifier in correct format
