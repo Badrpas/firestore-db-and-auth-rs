@@ -234,3 +234,24 @@ where
     let firebase_document = pod_to_document(&document)?;
     write_dto(auth, path, document_id, firebase_document, options)
 }
+
+///
+/// ## Arguments
+/// * 'auth' The authentication token
+/// * 'path' The document path / collection; For example "my_collection" or "a/nested/collection"
+/// * 'document_id' The document id. Make sure that you do not include the document id in the path argument.
+/// * 'document' The document
+/// * 'options' Write options
+pub async fn write_async<T>(
+    auth: &impl FirebaseAuthBearer,
+    path: &str,
+    document_id: Option<impl AsRef<str>>,
+    document: &T,
+    options: WriteOptions,
+) -> Result<WriteResult>
+where
+    T: Serialize,
+{
+    let firebase_document = pod_to_document(&document)?;
+    write_dto_async(auth, path, document_id, firebase_document, options).await
+}
