@@ -487,13 +487,14 @@ pub mod service_account {
 
             if jwt_update_expiry_if(&mut jwt, 50) {
                 if let Some(secret) = self.credentials.keys.secret.as_ref() {
-                    println!("Hope there is no deadlock right effing now...");
-                    if let Ok(v) = self.jwt.read().unwrap().encode(&secret.deref()) {
+                    println!("[FirebaseAuthBearer] Hope there is no deadlock right effing now...");
+                    if let Ok(v) = jwt.encode(&secret.deref()) {
                         if let Ok(v2) = v.encoded() {
                             let mut token = self.access_token_.write().unwrap();
                             let _prev_token = std::mem::replace(&mut *token, v2.encode());
                         }
                     }
+                    println!("[FirebaseAuthBearer] Welp, no deadlock it seems...");
                 }
             }
 
